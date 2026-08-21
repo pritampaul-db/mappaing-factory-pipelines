@@ -1,0 +1,626 @@
+{
+  "version": 2,
+  "inputs": {
+    "RAW_GL_ACCOUNT": {
+      "columns": [
+        "GL_ACCOUNT_ID",
+        "GL_ACCOUNT_CODE",
+        "GL_ACCOUNT_NAME",
+        "ACCOUNT_TYPE",
+        "ACCOUNT_CATEGORY",
+        "PARENT_ACCOUNT_ID",
+        "CURRENCY_CODE",
+        "ACTIVE_FLAG",
+        "EFFECTIVE_FROM",
+        "EFFECTIVE_TO"
+      ],
+      "table": "pritam_demo_workspace_catalog.mapping_factory_pipeline.RAW_GL_ACCOUNT"
+    },
+    "RAW_GL_JOURNAL_ENTRY": {
+      "columns": [
+        "JOURNAL_ENTRY_ID",
+        "GL_ACCOUNT_ID",
+        "LEGAL_ENTITY_CODE",
+        "COST_CENTER_CODE",
+        "PROFIT_CENTER_CODE",
+        "POSTING_DATE",
+        "DOCUMENT_DATE",
+        "DOCUMENT_TYPE",
+        "DEBIT_AMOUNT",
+        "CREDIT_AMOUNT",
+        "CURRENCY_CODE",
+        "REFERENCE_NUMBER"
+      ],
+      "table": "pritam_demo_workspace_catalog.mapping_factory_pipeline.RAW_GL_JOURNAL_ENTRY"
+    },
+    "RAW_GL_BALANCE": {
+      "columns": [
+        "BALANCE_ID",
+        "GL_ACCOUNT_ID",
+        "LEGAL_ENTITY_CODE",
+        "FISCAL_YEAR",
+        "FISCAL_PERIOD",
+        "OPENING_BALANCE",
+        "DEBIT_TOTAL",
+        "CREDIT_TOTAL",
+        "CLOSING_BALANCE",
+        "CURRENCY_CODE"
+      ],
+      "table": "pritam_demo_workspace_catalog.mapping_factory_pipeline.RAW_GL_BALANCE"
+    },
+    "RAW_COST_CENTER": {
+      "columns": [
+        "COST_CENTER_ID",
+        "COST_CENTER_CODE",
+        "COST_CENTER_NAME",
+        "BUSINESS_UNIT_CODE",
+        "REGION_CODE",
+        "MANAGER_ID",
+        "ACTIVE_FLAG"
+      ],
+      "table": "pritam_demo_workspace_catalog.mapping_factory_pipeline.RAW_COST_CENTER"
+    }
+  },
+  "joins": [
+    {
+      "left_table": "RAW_GL_JOURNAL_ENTRY",
+      "left_col": "GL_ACCOUNT_ID",
+      "right_table": "RAW_GL_ACCOUNT",
+      "right_col": "GL_ACCOUNT_ID"
+    },
+    {
+      "left_table": "RAW_GL_BALANCE",
+      "left_col": "GL_ACCOUNT_ID",
+      "right_table": "RAW_GL_ACCOUNT",
+      "right_col": "GL_ACCOUNT_ID"
+    },
+    {
+      "left_table": "RAW_GL_JOURNAL_ENTRY",
+      "left_col": "COST_CENTER_CODE",
+      "right_table": "RAW_COST_CENTER",
+      "right_col": "COST_CENTER_CODE"
+    },
+    {
+      "left_table": "RAW_GL_ACCOUNT",
+      "left_col": "PARENT_ACCOUNT_ID",
+      "right_table": "RAW_GL_ACCOUNT",
+      "right_col": "GL_ACCOUNT_ID"
+    }
+  ],
+  "targets": [
+    {
+      "target_name": "DIM_FINANCIAL_ACCOUNT",
+      "columns": [
+        {
+          "target_field": "FIN_ACCOUNT_KEY",
+          "sql": "XXHASH64(CAST(RAW_GL_JOURNAL_ENTRY.GL_ACCOUNT_ID AS STRING))"
+        },
+        {
+          "target_field": "ACCOUNT_BUSINESS_CODE",
+          "sql": "`RAW_GL_ACCOUNT`.`GL_ACCOUNT_CODE`"
+        },
+        {
+          "target_field": "ACCOUNT_LABEL",
+          "sql": "`RAW_GL_ACCOUNT`.`GL_ACCOUNT_NAME`"
+        },
+        {
+          "target_field": "ACCOUNT_CLASS",
+          "sql": "UPPER(TRIM(`RAW_GL_ACCOUNT`.`ACCOUNT_TYPE`))"
+        },
+        {
+          "target_field": "ACCOUNT_GROUP",
+          "sql": "`RAW_GL_ACCOUNT`.`ACCOUNT_CATEGORY`"
+        },
+        {
+          "target_field": "PARENT_FIN_ACCOUNT_KEY",
+          "sql": "CASE WHEN RAW_GL_ACCOUNT.PARENT_ACCOUNT_ID IS NULL THEN NULL ELSE XXHASH64(RAW_GL_ACCOUNT.PARENT_ACCOUNT_ID) END"
+        },
+        {
+          "target_field": "REPORTING_CURRENCY",
+          "sql": "`RAW_GL_ACCOUNT`.`CURRENCY_CODE`"
+        },
+        {
+          "target_field": "ACCOUNT_LIFECYCLE_STATUS",
+          "sql": "IF(RAW_GL_ACCOUNT.ACTIVE_FLAG, 'ACTIVE', 'INACTIVE')"
+        },
+        {
+          "target_field": "VALID_FROM_DATE",
+          "sql": "`RAW_GL_ACCOUNT`.`EFFECTIVE_FROM`"
+        },
+        {
+          "target_field": "VALID_TO_DATE",
+          "sql": "`RAW_GL_ACCOUNT`.`EFFECTIVE_TO`"
+        },
+        {
+          "target_field": "IS_CURRENT_RECORD",
+          "sql": "CASE WHEN RAW_GL_ACCOUNT.EFFECTIVE_TO IS NULL THEN TRUE ELSE FALSE END"
+        }
+      ],
+      "validations": [
+        {
+          "name": "DIM_FINANCIAL_ACCOUNT_VALID_TO_DATE_CONSISTE_D1113E",
+          "column": "VALID_TO_DATE",
+          "logic": "VALID_TO_DATE IS NULL OR VALID_TO_DATE >= VALID_FROM_DATE",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "DIM_FINANCIAL_ACCOUNT_ACCOUNT_GROUP_COMPLETE_494E1A",
+          "column": "ACCOUNT_GROUP",
+          "logic": "NOT ACCOUNT_GROUP IS NULL",
+          "action": "fail",
+          "severity": "medium"
+        },
+        {
+          "name": "DIM_FINANCIAL_ACCOUNT_ACCOUNT_LABEL_COMPLETE_890B9A",
+          "column": "ACCOUNT_LABEL",
+          "logic": "NOT ACCOUNT_LABEL IS NULL AND LENGTH(ACCOUNT_LABEL) > 0",
+          "action": "fail",
+          "severity": "high"
+        },
+        {
+          "name": "DIM_FINANCIAL_ACCOUNT_PARENT_FIN_ACCOUNT_KEY_661EF4",
+          "column": "PARENT_FIN_ACCOUNT_KEY",
+          "logic": "PARENT_FIN_ACCOUNT_KEY IS NULL OR PARENT_FIN_ACCOUNT_KEY <> 0",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "DIM_FINANCIAL_ACCOUNT_VALID_FROM_DATE_COMPLE_43162E",
+          "column": "VALID_FROM_DATE",
+          "logic": "VALID_FROM_DATE IS NULL OR VALID_FROM_DATE <= CURRENT_DATE",
+          "action": "fail",
+          "severity": "critical"
+        },
+        {
+          "name": "DIM_FINANCIAL_ACCOUNT_REPORTING_CURRENCY_VAL_DCC5E5",
+          "column": "REPORTING_CURRENCY",
+          "logic": "REPORTING_CURRENCY RLIKE '^[A-Z]{3}$'",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "DIM_FINANCIAL_ACCOUNT_IS_CURRENT_RECORD_CONS_8BF1FA",
+          "column": "IS_CURRENT_RECORD",
+          "logic": "IS_CURRENT_RECORD = (VALID_TO_DATE IS NULL)",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "DIM_FINANCIAL_ACCOUNT_FIN_ACCOUNT_KEY_COMPLE_7B5DA4",
+          "column": "FIN_ACCOUNT_KEY",
+          "logic": "NOT FIN_ACCOUNT_KEY IS NULL",
+          "action": "fail",
+          "severity": "critical"
+        },
+        {
+          "name": "DIM_FINANCIAL_ACCOUNT_ACCOUNT_BUSINESS_CODE__5B9FF0",
+          "column": "ACCOUNT_BUSINESS_CODE",
+          "logic": "NOT ACCOUNT_BUSINESS_CODE IS NULL AND LENGTH(ACCOUNT_BUSINESS_CODE) > 0",
+          "action": "fail",
+          "severity": "critical"
+        },
+        {
+          "name": "DIM_FINANCIAL_ACCOUNT_ACCOUNT_LIFECYCLE_STAT_BD1CDD",
+          "column": "ACCOUNT_LIFECYCLE_STATUS",
+          "logic": "ACCOUNT_LIFECYCLE_STATUS IN ('ACTIVE', 'INACTIVE', 'CLOSED', 'PENDING')",
+          "action": "warn",
+          "severity": "medium"
+        },
+        {
+          "name": "DIM_FINANCIAL_ACCOUNT_ACCOUNT_CLASS_VALIDITY_ECF3D2",
+          "column": "ACCOUNT_CLASS",
+          "logic": "ACCOUNT_CLASS IN ('ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE')",
+          "action": "warn",
+          "severity": "high"
+        }
+      ],
+      "source_tables": [
+        "RAW_GL_ACCOUNT",
+        "RAW_GL_JOURNAL_ENTRY"
+      ]
+    },
+    {
+      "target_name": "DIM_FINANCE_ORGANISATION",
+      "columns": [
+        {
+          "target_field": "ORG_UNIT_KEY",
+          "sql": "SHA2(RAW_COST_CENTER.COST_CENTER_CODE, 256)"
+        },
+        {
+          "target_field": "ORG_UNIT_CODE",
+          "sql": "`RAW_COST_CENTER`.`COST_CENTER_CODE`"
+        },
+        {
+          "target_field": "ORG_UNIT_NAME",
+          "sql": "`RAW_COST_CENTER`.`COST_CENTER_NAME`"
+        },
+        {
+          "target_field": "BUSINESS_SEGMENT",
+          "sql": "`RAW_COST_CENTER`.`BUSINESS_UNIT_CODE`"
+        },
+        {
+          "target_field": "GEOGRAPHIC_REGION",
+          "sql": "`RAW_COST_CENTER`.`REGION_CODE`"
+        },
+        {
+          "target_field": "RESPONSIBLE_OWNER",
+          "sql": "`RAW_COST_CENTER`.`MANAGER_ID`"
+        },
+        {
+          "target_field": "ORG_STATUS",
+          "sql": "IF(RAW_COST_CENTER.ACTIVE_FLAG, 'ACTIVE', 'INACTIVE')"
+        }
+      ],
+      "validations": [
+        {
+          "name": "DIM_FINANCE_ORGANISATION_ORG_UNIT_NAME_COMPL_1BCA93",
+          "column": "ORG_UNIT_NAME",
+          "logic": "NOT ORG_UNIT_NAME IS NULL AND LENGTH(ORG_UNIT_NAME) > 0",
+          "action": "fail",
+          "severity": "high"
+        },
+        {
+          "name": "DIM_FINANCE_ORGANISATION_ORG_UNIT_CODE_COMPL_C08823",
+          "column": "ORG_UNIT_CODE",
+          "logic": "NOT ORG_UNIT_CODE IS NULL AND LENGTH(TRIM(ORG_UNIT_CODE)) > 0",
+          "action": "fail",
+          "severity": "critical"
+        },
+        {
+          "name": "DIM_FINANCE_ORGANISATION_GEOGRAPHIC_REGION_V_8DD130",
+          "column": "GEOGRAPHIC_REGION",
+          "logic": "NOT GEOGRAPHIC_REGION IS NULL AND UPPER(GEOGRAPHIC_REGION) IN ('NA', 'LATAM', 'EMEA', 'APAC', 'MEA', 'ANZ')",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "DIM_FINANCE_ORGANISATION_RESPONSIBLE_OWNER_C_6275D4",
+          "column": "RESPONSIBLE_OWNER",
+          "logic": "NOT RESPONSIBLE_OWNER IS NULL AND LENGTH(TRIM(RESPONSIBLE_OWNER)) > 0",
+          "action": "fail",
+          "severity": "medium"
+        },
+        {
+          "name": "DIM_FINANCE_ORGANISATION_ORG_UNIT_KEY_COMPLE_1A80D3",
+          "column": "ORG_UNIT_KEY",
+          "logic": "NOT ORG_UNIT_KEY IS NULL",
+          "action": "fail",
+          "severity": "critical"
+        },
+        {
+          "name": "DIM_FINANCE_ORGANISATION_ORG_STATUS_VALIDITY_50CB65",
+          "column": "ORG_STATUS",
+          "logic": "ORG_STATUS IN ('ACTIVE', 'INACTIVE', 'PENDING', 'CLOSED')",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "DIM_FINANCE_ORGANISATION_BUSINESS_SEGMENT_CO_DB90EB",
+          "column": "BUSINESS_SEGMENT",
+          "logic": "NOT BUSINESS_SEGMENT IS NULL AND LENGTH(TRIM(BUSINESS_SEGMENT)) > 0",
+          "action": "fail",
+          "severity": "high"
+        }
+      ],
+      "source_tables": [
+        "RAW_COST_CENTER"
+      ]
+    },
+    {
+      "target_name": "FACT_FINANCIAL_ACTIVITY",
+      "columns": [
+        {
+          "target_field": "FIN_ACTIVITY_KEY",
+          "sql": "xxhash64(RAW_GL_JOURNAL_ENTRY.JOURNAL_ENTRY_ID)"
+        },
+        {
+          "target_field": "FIN_ACCOUNT_KEY",
+          "sql": "XXHASH64(CAST(RAW_GL_JOURNAL_ENTRY.GL_ACCOUNT_ID AS STRING))"
+        },
+        {
+          "target_field": "ORG_UNIT_KEY",
+          "sql": "SHA2(RAW_COST_CENTER.COST_CENTER_CODE, 256)"
+        },
+        {
+          "target_field": "ENTITY_CODE",
+          "sql": "`RAW_GL_JOURNAL_ENTRY`.`LEGAL_ENTITY_CODE`"
+        },
+        {
+          "target_field": "POSTING_DAY",
+          "sql": "CAST(`RAW_GL_JOURNAL_ENTRY`.`POSTING_DATE` AS DATE)"
+        },
+        {
+          "target_field": "ACTIVITY_CATEGORY",
+          "sql": "`RAW_GL_JOURNAL_ENTRY`.`DOCUMENT_TYPE`"
+        },
+        {
+          "target_field": "BASE_CURRENCY",
+          "sql": "`RAW_GL_JOURNAL_ENTRY`.`CURRENCY_CODE`"
+        },
+        {
+          "target_field": "DEBIT_VALUE",
+          "sql": "`RAW_GL_JOURNAL_ENTRY`.`DEBIT_AMOUNT`"
+        },
+        {
+          "target_field": "CREDIT_VALUE",
+          "sql": "COALESCE(`RAW_GL_JOURNAL_ENTRY`.`CREDIT_AMOUNT`, 0)"
+        },
+        {
+          "target_field": "NET_ACCOUNTING_VALUE",
+          "sql": "COALESCE(RAW_GL_JOURNAL_ENTRY.DEBIT_AMOUNT,0) - COALESCE(RAW_GL_JOURNAL_ENTRY.CREDIT_AMOUNT,0)"
+        },
+        {
+          "target_field": "ACCOUNTING_DIRECTION",
+          "sql": "CASE WHEN COALESCE(RAW_GL_JOURNAL_ENTRY.DEBIT_AMOUNT, 0) <> 0 THEN 'DEBIT' WHEN COALESCE(RAW_GL_JOURNAL_ENTRY.CREDIT_AMOUNT, 0) <> 0 THEN 'CREDIT' ELSE NULL END"
+        },
+        {
+          "target_field": "FISCAL_YEAR_NUM",
+          "sql": "YEAR(TRY_CAST(RAW_GL_JOURNAL_ENTRY.POSTING_DATE AS DATE))"
+        },
+        {
+          "target_field": "FISCAL_PERIOD_NUM",
+          "sql": "MONTH(TRY_CAST(RAW_GL_JOURNAL_ENTRY.POSTING_DATE AS DATE))"
+        },
+        {
+          "target_field": "POSTING_MONTH",
+          "sql": "DATE_FORMAT(COALESCE(TRY_TO_DATE(`RAW_GL_JOURNAL_ENTRY`.`POSTING_DATE`, 'yyyy-MM-dd'), TRY_TO_DATE(`RAW_GL_JOURNAL_ENTRY`.`POSTING_DATE`, 'MM/dd/yyyy'), TRY_TO_DATE(`RAW_GL_JOURNAL_ENTRY`.`POSTING_DATE`, 'dd-MM-yyyy'), TRY_TO_DATE(`RAW_GL_JOURNAL_ENTRY`.`POSTING_DATE`, 'dd/MM/yyyy'), TRY_TO_DATE(`RAW_GL_JOURNAL_ENTRY`.`POSTING_DATE`, 'yyyyMMdd')), 'yyyy-MM')"
+        }
+      ],
+      "validations": [
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_ORG_UNIT_KEY_COMPLET_1C4244",
+          "column": "ORG_UNIT_KEY",
+          "logic": "NOT ORG_UNIT_KEY IS NULL",
+          "action": "fail",
+          "severity": "critical"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_FISCAL_PERIOD_NUM_VA_95FE54",
+          "column": "FISCAL_PERIOD_NUM",
+          "logic": "FISCAL_PERIOD_NUM IS NULL OR FISCAL_PERIOD_NUM BETWEEN 1 AND 12",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_ACTIVITY_CATEGORY_CO_CF86B4",
+          "column": "ACTIVITY_CATEGORY",
+          "logic": "NOT ACTIVITY_CATEGORY IS NULL AND LENGTH(TRIM(ACTIVITY_CATEGORY)) > 0",
+          "action": "fail",
+          "severity": "medium"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_FIN_ACCOUNT_KEY_COMP_06AE94",
+          "column": "FIN_ACCOUNT_KEY",
+          "logic": "NOT FIN_ACCOUNT_KEY IS NULL",
+          "action": "fail",
+          "severity": "critical"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_CREDIT_VALUE_ACCURAC_B05193",
+          "column": "CREDIT_VALUE",
+          "logic": "NOT CREDIT_VALUE IS NULL AND CREDIT_VALUE >= 0",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_POSTING_MONTH_VALIDI_A3289A",
+          "column": "POSTING_MONTH",
+          "logic": "POSTING_MONTH IS NULL OR POSTING_MONTH RLIKE '^[0-9]{4}-(0[1-9]|1[0-2])$'",
+          "action": "warn",
+          "severity": "medium"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_FISCAL_YEAR_NUM_VALI_291289",
+          "column": "FISCAL_YEAR_NUM",
+          "logic": "FISCAL_YEAR_NUM IS NULL OR FISCAL_YEAR_NUM BETWEEN 1900 AND EXTRACT(YEAR FROM CURRENT_DATE) + 1 OR FISCAL_YEAR_NUM = 9999",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_BASE_CURRENCY_VALIDI_5099FE",
+          "column": "BASE_CURRENCY",
+          "logic": "NOT BASE_CURRENCY IS NULL AND BASE_CURRENCY RLIKE '^[A-Z]{3}$'",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_DEBIT_VALUE_ACCURACY_D5EBEA",
+          "column": "DEBIT_VALUE",
+          "logic": "DEBIT_VALUE IS NULL OR DEBIT_VALUE >= 0",
+          "action": "fail",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_FIN_ACTIVITY_KEY_COM_58AC70",
+          "column": "FIN_ACTIVITY_KEY",
+          "logic": "NOT FIN_ACTIVITY_KEY IS NULL",
+          "action": "fail",
+          "severity": "critical"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_ENTITY_CODE_COMPLETE_64C2D7",
+          "column": "ENTITY_CODE",
+          "logic": "NOT ENTITY_CODE IS NULL AND LENGTH(TRIM(ENTITY_CODE)) > 0",
+          "action": "fail",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_POSTING_DAY_VALIDITY_964781",
+          "column": "POSTING_DAY",
+          "logic": "POSTING_DAY IS NULL OR (POSTING_DAY >= CAST('1900-01-01' AS DATE) AND POSTING_DAY <= DATE_ADD(CURRENT_DATE, 370))",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_NET_ACCOUNTING_VALUE_F23E62",
+          "column": "NET_ACCOUNTING_VALUE",
+          "logic": "NOT NET_ACCOUNTING_VALUE IS NULL",
+          "action": "fail",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_FINANCIAL_ACTIVITY_ACCOUNTING_DIRECTION_D6826F",
+          "column": "ACCOUNTING_DIRECTION",
+          "logic": "ACCOUNTING_DIRECTION IS NULL OR ACCOUNTING_DIRECTION IN ('DEBIT', 'CREDIT')",
+          "action": "warn",
+          "severity": "medium"
+        }
+      ],
+      "source_tables": [
+        "RAW_GL_JOURNAL_ENTRY",
+        "RAW_COST_CENTER"
+      ]
+    },
+    {
+      "target_name": "FACT_ACCOUNT_BALANCE",
+      "columns": [
+        {
+          "target_field": "BALANCE_SNAPSHOT_KEY",
+          "sql": "xxhash64(RAW_GL_BALANCE.BALANCE_ID)"
+        },
+        {
+          "target_field": "FIN_ACCOUNT_KEY",
+          "sql": "XXHASH64(CAST(RAW_GL_JOURNAL_ENTRY.GL_ACCOUNT_ID AS STRING))"
+        },
+        {
+          "target_field": "ENTITY_CODE",
+          "sql": "`RAW_GL_BALANCE`.`LEGAL_ENTITY_CODE`"
+        },
+        {
+          "target_field": "REPORTING_YEAR",
+          "sql": "`RAW_GL_BALANCE`.`FISCAL_YEAR`"
+        },
+        {
+          "target_field": "REPORTING_PERIOD",
+          "sql": "`RAW_GL_BALANCE`.`FISCAL_PERIOD`"
+        },
+        {
+          "target_field": "OPENING_VALUE",
+          "sql": "`RAW_GL_BALANCE`.`OPENING_BALANCE`"
+        },
+        {
+          "target_field": "DEBIT_VALUE",
+          "sql": "`RAW_GL_BALANCE`.`DEBIT_TOTAL`"
+        },
+        {
+          "target_field": "CREDIT_VALUE",
+          "sql": "COALESCE(`RAW_GL_JOURNAL_ENTRY`.`CREDIT_AMOUNT`, 0)"
+        },
+        {
+          "target_field": "CLOSING_VALUE",
+          "sql": "`RAW_GL_BALANCE`.`CLOSING_BALANCE`"
+        },
+        {
+          "target_field": "BALANCE_RECONCILIATION_STATUS",
+          "sql": "CASE WHEN COALESCE(RAW_GL_BALANCE.OPENING_BALANCE,0) + COALESCE(RAW_GL_BALANCE.DEBIT_TOTAL,0) - COALESCE(RAW_GL_BALANCE.CREDIT_TOTAL,0) = COALESCE(RAW_GL_BALANCE.CLOSING_BALANCE,0) THEN 'RECONCILED' ELSE 'UNRECONCILED' END"
+        },
+        {
+          "target_field": "REPORTING_CURRENCY",
+          "sql": "`RAW_GL_BALANCE`.`CURRENCY_CODE`"
+        },
+        {
+          "target_field": "PERIOD_END_DATE",
+          "sql": "LAST_DAY(MAKE_DATE(RAW_GL_BALANCE.FISCAL_YEAR, RAW_GL_BALANCE.FISCAL_PERIOD, 1))"
+        }
+      ],
+      "validations": [
+        {
+          "name": "FACT_ACCOUNT_BALANCE_CLOSING_VALUE_COMPLETEN_EB26C6",
+          "column": "CLOSING_VALUE",
+          "logic": "NOT CLOSING_VALUE IS NULL",
+          "action": "fail",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_ACCOUNT_BALANCE_BALANCE_SNAPSHOT_KEY_CO_ED4640",
+          "column": "BALANCE_SNAPSHOT_KEY",
+          "logic": "NOT BALANCE_SNAPSHOT_KEY IS NULL",
+          "action": "fail",
+          "severity": "critical"
+        },
+        {
+          "name": "FACT_ACCOUNT_BALANCE_PERIOD_END_DATE_VALIDIT_CC557C",
+          "column": "PERIOD_END_DATE",
+          "logic": "NOT PERIOD_END_DATE IS NULL AND PERIOD_END_DATE BETWEEN CAST('1900-01-01' AS DATE) AND CAST('2100-12-31' AS DATE)",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_ACCOUNT_BALANCE_CREDIT_VALUE_ACCURACY_132991",
+          "column": "CREDIT_VALUE",
+          "logic": "NOT CREDIT_VALUE IS NULL AND CREDIT_VALUE >= 0",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_ACCOUNT_BALANCE_BALANCE_RECONCILIATION__0137A6",
+          "column": "BALANCE_RECONCILIATION_STATUS",
+          "logic": "BALANCE_RECONCILIATION_STATUS IN ('RECONCILED', 'UNRECONCILED', 'PENDING', 'IN_PROGRESS', 'FAILED')",
+          "action": "warn",
+          "severity": "medium"
+        },
+        {
+          "name": "FACT_ACCOUNT_BALANCE_REPORTING_PERIOD_VALIDI_C371D2",
+          "column": "REPORTING_PERIOD",
+          "logic": "REPORTING_PERIOD BETWEEN 1 AND 12",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_ACCOUNT_BALANCE_REPORTING_YEAR_VALIDITY_ABC51A",
+          "column": "REPORTING_YEAR",
+          "logic": "REPORTING_YEAR BETWEEN 1900 AND 2100",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_ACCOUNT_BALANCE_FIN_ACCOUNT_KEY_COMPLET_98D20B",
+          "column": "FIN_ACCOUNT_KEY",
+          "logic": "NOT FIN_ACCOUNT_KEY IS NULL",
+          "action": "fail",
+          "severity": "critical"
+        },
+        {
+          "name": "FACT_ACCOUNT_BALANCE_ENTITY_CODE_COMPLETENES_C3ABC1",
+          "column": "ENTITY_CODE",
+          "logic": "NOT ENTITY_CODE IS NULL AND LENGTH(TRIM(ENTITY_CODE)) > 0",
+          "action": "fail",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_ACCOUNT_BALANCE_REPORTING_CURRENCY_VALI_EF6FB8",
+          "column": "REPORTING_CURRENCY",
+          "logic": "REPORTING_CURRENCY RLIKE '^[A-Z]{3}$'",
+          "action": "warn",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_ACCOUNT_BALANCE_OPENING_VALUE_COMPLETEN_7A8E1C",
+          "column": "OPENING_VALUE",
+          "logic": "NOT OPENING_VALUE IS NULL",
+          "action": "fail",
+          "severity": "high"
+        },
+        {
+          "name": "FACT_ACCOUNT_BALANCE_DEBIT_VALUE_ACCURACY_1067E9",
+          "column": "DEBIT_VALUE",
+          "logic": "DEBIT_VALUE IS NULL OR DEBIT_VALUE >= 0",
+          "action": "fail",
+          "severity": "high"
+        }
+      ],
+      "source_tables": [
+        "RAW_GL_BALANCE",
+        "RAW_GL_JOURNAL_ENTRY"
+      ]
+    }
+  ],
+  "catalog": "pritam_demo_workspace_catalog",
+  "schema": "mapping_factory_pipeline",
+  "source_catalog": "pritam_demo_workspace_catalog",
+  "source_schema": "mapping_factory_pipeline",
+  "table_type": "materialized_view",
+  "spec_name": "Finance_V4",
+  "pipeline_name": "finance_v4_pipeline"
+}
